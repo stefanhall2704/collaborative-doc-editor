@@ -105,13 +105,18 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 
 // Logout Handler
-// func logoutHandler(w http.ResponseWriter, r *http.Request) {
-//     // Clear session
-//     session, _ := store.Get(r, "session-name")
-//     delete(session.Values, "user")
-//     session.Save(r, w)
-//     // Redirect or respond with success message
-// }
+// Logout Handler
+func logoutHandler(w http.ResponseWriter, r *http.Request) {
+    // Clear session
+    session, _ := store.Get(r, "session-name")
+    delete(session.Values, "user")
+    if err := session.Save(r, w); err != nil {
+        http.Error(w, "Error saving session", http.StatusInternalServerError)
+        return
+    }
+    // Redirect to login page
+    http.Redirect(w, r, "/login", http.StatusFound)
+}
 
 // Authentication Middleware
 func authMiddleware(next http.Handler) http.Handler {
@@ -153,6 +158,7 @@ func main() {
 
     // Apply middleware to other protected routes
     http.Handle("/", logRequest(authMiddleware(http.HandlerFunc(documentEditing))))
+    http.Handle("/logout", logRequest(authMiddleware(http.HandlerFunc(logoutHandler))))
     http.Handle("/documents/create", logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         enableCors(&w)
         if r.Method == "OPTIONS" {

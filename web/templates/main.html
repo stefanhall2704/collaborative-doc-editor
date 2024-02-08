@@ -8,83 +8,146 @@
   <!-- Bootstrap CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <!-- Optional Bootstrap JS with Popper -->
-  <style>
-    #document_editing {
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin: 0 auto;
-      padding: 20px;
-    }
+</head>
+<style>
+  /* Default mode */
+  body {
+    background-color: #fff;
+    /* Default background color */
+    color: #000;
+    /* Default text color */
+  }
 
-    .editor-container {
-      width: 80%;
-      max-width: 800px;
-    }
+  /* Dark mode */
+  body.dark-mode {
+    background-color: #343a40;
+    /* Dark background color */
+    color: #fff;
+    /* Light text color */
+  }
 
-    #docTitle {
-      width: 100%;
-      padding: 10px;
-      margin-bottom: 20px;
-      font-size: 24px;
-      text-align: center;
-    }
+  /* Toggle button */
+  .toggle-btn {
+    position: absolute;
+    top: 10px;
+    right: 90px;
+    cursor: pointer;
+  }
 
-    #docEditor {
-      width: 100%;
-      height: 500px;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      font-size: 16px;
-      color: #333;
-    }
+  #document_editing {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 auto;
+    padding: 20px;
+  }
 
-    #status {
-      margin-top: 20px;
-      color: #888;
-    }
+  .editor-container {
+    width: 80%;
+    max-width: 800px;
+  }
 
-    /* style.css */
-    .navbar {
-      background-color: #333;
-      width: 100%;
-    }
-  </style>
+  #docTitle {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 20px;
+    font-size: 24px;
+    text-align: center;
+    background-color: #f8f9fa;
+    /* Light gray background */
+    color: #fff;
+    /* White text color */
+  }
+
+  #docEditor {
+    width: 100%;
+    height: 500px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 16px;
+    color: #333;
+    background-color: #f8f9fa;
+    /* Light gray background */
+  }
+
+  #status {
+    margin-top: 20px;
+    color: #888;
+  }
+
+  /* style.css */
+  .navbar {
+    background-color: #333;
+    width: 100%;
+  }
+
+  /* Size of moon and sun icons */
+  .toggle-btn img {
+    width: 30px;
+    height: 30px;
+  }
+
+  /* Dark mode specific styles */
+  body.dark-mode #docTitle,
+  body.dark-mode #docEditor {
+    background-color: #333;
+    /* Dark gray background */
+    color: #fff;
+    /* White text color */
+  }
+
+  /* Light mode specific styles */
+  body:not(.dark-mode) #docTitle {
+    color: #000;
+    /* Black text color */
+  }
+</style>
 </head>
 
-
-
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <div class="container-fluid">
-    <a class="navbar-brand" href="#">DocEditor</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown"
-      aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNavDropdown">
-      <ul class="navbar-nav">
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button"
-            data-bs-toggle="dropdown" aria-expanded="false">
-            File
-          </a>
-          <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
-            <li><a class="dropdown-item" href="#" id="createDocument">New File</a></li>
-            <li><a class="dropdown-item" href="#" id="loadDocument">Load File</a></li>
-          </ul>
-        </li>
-      </ul>
-    </div>
-  </div>
-</nav>
-
-
-
-
 <body>
+
+
+  <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="#">DocEditor</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown"
+        aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNavDropdown">
+        <ul class="navbar-nav">
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button"
+              data-bs-toggle="dropdown" aria-expanded="false">
+              File
+            </a>
+            <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+              <li><a class="dropdown-item" href="#" id="createDocument">New File</a></li>
+              <li><a class="dropdown-item" href="#" id="loadDocument">Load File</a></li>
+            </ul>
+          </li>
+        </ul>
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="/logout" id="logoutButton">Logout</a>
+          </li>
+          <li class="nav-item">
+            <div class="toggle-btn" id="darkModeToggle">
+              <img id="moonIcon" src="https://img.icons8.com/ios-filled/50/000000/crescent-moon.png" alt="Dark Mode">
+              <img id="sunIcon" src="https://img.icons8.com/ios-filled/50/000000/sun--v1.png" alt="Light Mode">
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+
+  </div>
   <div class="editor-container" id="document_editing">
     <input type="text" id="docTitle" placeholder="Document Title">
     <textarea id="docEditor" placeholder="Start editing your document here..."></textarea>
@@ -154,6 +217,46 @@
     crossorigin="anonymous"></script>
 
   <script>
+    function toggleDarkMode() {
+      const body = document.body;
+      body.classList.toggle('dark-mode');
+
+      // Toggle visibility of moon and sun icons
+      const moonIcon = document.getElementById('moonIcon');
+      const sunIcon = document.getElementById('sunIcon');
+      if (body.classList.contains('dark-mode')) {
+        moonIcon.style.display = 'none';
+        sunIcon.style.display = 'block';
+      } else {
+        moonIcon.style.display = 'block';
+        sunIcon.style.display = 'none';
+      }
+
+      // Save the dark mode state to local storage
+      localStorage.setItem('darkMode', body.classList.contains('dark-mode'));
+    }
+
+    // Function to initialize dark mode based on local storage
+    function initializeDarkMode() {
+      const isDarkMode = localStorage.getItem('darkMode') === 'true';
+      const body = document.body;
+      body.classList.toggle('dark-mode', isDarkMode);
+      const moonIcon = document.getElementById('moonIcon');
+      const sunIcon = document.getElementById('sunIcon');
+      if (isDarkMode) {
+        moonIcon.style.display = 'none';
+        sunIcon.style.display = 'block';
+      } else {
+        moonIcon.style.display = 'block';
+        sunIcon.style.display = 'none';
+      }
+    }
+
+    // Event listener for dark mode toggle button
+    document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
+
+    // Initialize dark mode on page load
+    window.addEventListener('load', initializeDarkMode);
     $(document).ready(function () {
       $("#createDocument").click(function () {
         var myModal = new bootstrap.Modal(document.getElementById('createDocModal'));
