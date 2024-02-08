@@ -1,0 +1,52 @@
+<!-- login.html -->
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Login</title>
+</head>
+
+<body>
+  <h2>User Login</h2>
+  <form id="loginForm">
+    <label for="username">Username:</label><br>
+    <input type="text" id="username" name="username" required><br>
+    <label for="password">Password:</label><br>
+    <input type="password" id="password" name="password" required><br><br>
+    <button type="submit">Login</button>
+  </form>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', function (event) {
+      event.preventDefault(); // Prevent default form submission
+
+      // Get input values
+      var username = document.getElementById('username').value;
+      var password = document.getElementById('password').value;
+
+      // Perform basic client-side validation
+      if (!username || !password) {
+        alert('Please enter both username and password.');
+        return;
+      }
+
+      // Send login request to server using AJAX
+      var xhr = new XMLHttpRequest();
+      xhr.open('POST', '/login/process');
+      xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+      xhr.onload = function () {
+        if (xhr.status === 200) {
+          // Redirect to home page if login is successful
+          window.location.href = "/";
+        } else {
+          // Display error message if login fails
+          alert('Login failed. Please check your username and password.');
+        }
+      };
+      xhr.send('username=' + encodeURIComponent(username) + '&password=' + encodeURIComponent(password));
+    });
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Collaborative Document Editor</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+  <!-- Optional Bootstrap JS with Popper -->
+  <style>
+    #document_editing {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .editor-container {
+      width: 80%;
+      max-width: 800px;
+    }
+
+    #docTitle {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      font-size: 24px;
+      text-align: center;
+    }
+
+    #docEditor {
+      width: 100%;
+      height: 500px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      font-size: 16px;
+      color: #333;
+    }
+
+    #status {
+      margin-top: 20px;
+      color: #888;
+    }
+
+    /* style.css */
+    .navbar {
+      background-color: #333;
+      width: 100%;
+    }
+  </style>
+</head>
+
+
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#">DocEditor</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNavDropdown"
+      aria-controls="navbarNavDropdown" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNavDropdown">
+      <ul class="navbar-nav">
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownMenuLink" role="button"
+            data-bs-toggle="dropdown" aria-expanded="false">
+            File
+          </a>
+          <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
+            <li><a class="dropdown-item" href="#" id="createDocument">New File</a></li>
+            <li><a class="dropdown-item" href="#" id="loadDocument">Load File</a></li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+
+
+
+<body>
+  <div class="editor-container" id="document_editing">
+    <input type="text" id="docTitle" placeholder="Document Title">
+    <textarea id="docEditor" placeholder="Start editing your document here..."></textarea>
+    <div id="status">User status: Viewing</div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal fade" id="createDocModal" tabindex="-1" aria-labelledby="createDocModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="createDocModalLabel">Create Document</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="createDocForm">
+            <div class="mb-3">
+              <label for="title" class="form-label">Title</label>
+              <input type="text" class="form-control" id="title" name="title" placeholder="Title" required>
+            </div>
+            <div class="mb-3">
+              <label for="content" class="form-label">Content</label>
+              <textarea class="form-control" id="content" name="content" rows="3" required></textarea>
+            </div>
+            <input type="hidden" name="user_id" value="1"> <!-- Dynamically set based on logged-in user -->
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" form="createDocForm" class="btn btn-primary">Create Document</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Modal -->
+  <div class="modal fade" id="loadDocModal" tabindex="-1" aria-labelledby="loadDocModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="loadDocModalLabel">Create Document</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="loadDocForm">
+            <div class="mb-3">
+              <label for="title" class="form-label">Title</label>
+              <input type="text" class="form-control" id="title" name="title" placeholder="Title" required>
+            </div>
+            <div class="mb-3">
+              <label for="content" class="form-label">Content</label>
+              <textarea class="form-control" id="content" name="content" rows="3" required></textarea>
+            </div>
+            <input type="hidden" name="user_id" value="1"> <!-- Dynamically set based on logged-in user -->
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="submit" form="createDocForm" class="btn btn-primary">Create Document</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.1/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
+    integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
+    crossorigin="anonymous"></script>
+
+  <script>
+    $(document).ready(function () {
+      $("#createDocument").click(function () {
+        var myModal = new bootstrap.Modal(document.getElementById('createDocModal'));
+        myModal.show();
+      });
+
+      $("#loadDocument").click(function () {
+        var myModal = new bootstrap.Modal(document.getElementById('loadDocModal'));
+        myModal.show();
+      });
+    });
+
+    // script.js
+    $(document).ready(function () {
+      // When the user clicks on the button, open the modal
+
+      $("#loadDocument").click(function () {
+        $("#loadDocModal").css("display", "block");
+      });
+      // When the user clicks on <span> (x), close the modal
+      $(".close").click(function () {
+        $("#loadDocModal").css("display", "none");
+      });
+
+      // When the user clicks anywhere outside of the modal, close it
+      $(window).click(function (event) {
+        if ($(event.target).is("#loadDocModal")) {
+          $("#loadDocModal").css("display", "none");
+        }
+      });
+
+
+      $("#createDocument").click(function () {
+        $("#createDocModal").css("display", "block");
+      });
+      // When the user clicks on <span> (x), close the modal
+      $(".close").click(function () {
+        $("#createDocModal").css("display", "none");
+      });
+
+      // When the user clicks anywhere outside of the modal, close it
+      $(window).click(function (event) {
+        if ($(event.target).is("#createDocModal")) {
+          $("#createDocModal").css("display", "none");
+        }
+      });
+
+      // Handle form submission
+      $("#createDocForm").submit(function (e) {
+        e.preventDefault(); // Prevent default form submission
+
+        $.ajax({
+          type: "POST",
+          url: "/documents/create",
+          data: $(this).serialize(), // Serializes the form's elements.
+          success: function (data) {
+            $("#createDocModal").css("display", "none"); // Close the modal
+            // Optionally, refresh the page or update the UI
+          },
+        });
+      });
+    });
+  </script>
+</body>
+
+</html>
