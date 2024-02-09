@@ -154,6 +154,7 @@
     <div id="status">User status: Viewing</div>
   </div>
 
+
   <!-- Modal -->
   <div class="modal fade" id="createDocModal" tabindex="-1" aria-labelledby="createDocModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -163,25 +164,25 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
-          <form id="createDocForm">
+          <!-- Update the form tag to include enctype for file uploads -->
+          <form id="createDocForm" enctype="multipart/form-data">
+            <!-- Add a file input for attachments -->
             <div class="mb-3">
-              <label for="title" class="form-label">Title</label>
-              <input type="text" class="form-control" id="title" name="title" placeholder="Title" required>
-            </div>
-            <div class="mb-3">
-              <label for="content" class="form-label">Content</label>
-              <textarea class="form-control" id="content" name="content" rows="3" required></textarea>
+              <label for="attachment" class="form-label">Attachment</label>
+              <input type="file" class="form-control" id="attachment" name="attachment">
             </div>
             <input type="hidden" name="user_id" value="1"> <!-- Dynamically set based on logged-in user -->
           </form>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          <button type="submit" form="createDocForm" class="btn btn-primary">Create Document</button>
+          <!-- Change the type to "button" and add an onclick event to handle the form submission with JavaScript -->
+          <button type="button" class="btn btn-primary" id="submitCreateDocBtn">Create Document</button>
         </div>
       </div>
     </div>
   </div>
+
   <!-- Modal -->
   <div class="modal fade" id="loadDocModal" tabindex="-1" aria-labelledby="loadDocModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -217,107 +218,70 @@
     crossorigin="anonymous"></script>
 
   <script>
-    function toggleDarkMode() {
-      const body = document.body;
-      body.classList.toggle('dark-mode');
+    function submitCreateDocForm() {
+      var formData = new FormData($("#createDocForm")[0]);
 
-      // Toggle visibility of moon and sun icons
-      const moonIcon = document.getElementById('moonIcon');
-      const sunIcon = document.getElementById('sunIcon');
-      if (body.classList.contains('dark-mode')) {
-        moonIcon.style.display = 'none';
-        sunIcon.style.display = 'block';
-      } else {
-        moonIcon.style.display = 'block';
-        sunIcon.style.display = 'none';
-      }
-
-      // Save the dark mode state to local storage
-      localStorage.setItem('darkMode', body.classList.contains('dark-mode'));
-    }
-
-    // Function to initialize dark mode based on local storage
-    function initializeDarkMode() {
-      const isDarkMode = localStorage.getItem('darkMode') === 'true';
-      const body = document.body;
-      body.classList.toggle('dark-mode', isDarkMode);
-      const moonIcon = document.getElementById('moonIcon');
-      const sunIcon = document.getElementById('sunIcon');
-      if (isDarkMode) {
-        moonIcon.style.display = 'none';
-        sunIcon.style.display = 'block';
-      } else {
-        moonIcon.style.display = 'block';
-        sunIcon.style.display = 'none';
-      }
-    }
-
-    // Event listener for dark mode toggle button
-    document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
-
-    // Initialize dark mode on page load
-    window.addEventListener('load', initializeDarkMode);
-    $(document).ready(function () {
-      $("#createDocument").click(function () {
-        var myModal = new bootstrap.Modal(document.getElementById('createDocModal'));
-        myModal.show();
-      });
-
-      $("#loadDocument").click(function () {
-        var myModal = new bootstrap.Modal(document.getElementById('loadDocModal'));
-        myModal.show();
-      });
-    });
-
-    // script.js
-    $(document).ready(function () {
-      // When the user clicks on the button, open the modal
-
-      $("#loadDocument").click(function () {
-        $("#loadDocModal").css("display", "block");
-      });
-      // When the user clicks on <span> (x), close the modal
-      $(".close").click(function () {
-        $("#loadDocModal").css("display", "none");
-      });
-
-      // When the user clicks anywhere outside of the modal, close it
-      $(window).click(function (event) {
-        if ($(event.target).is("#loadDocModal")) {
-          $("#loadDocModal").css("display", "none");
+      $.ajax({
+        type: "POST",
+        url: "/documents/create",
+        data: formData,
+        processData: false, // Tell jQuery not to process the data
+        contentType: false, // Tell jQuery not to set contentType
+        success: function (data) {
+          $("#createDocModal").modal('hide'); // Close the modal
+          // Optionally, refresh the page or update the UI to reflect the new document
+        },
+        error: function (xhr, status, error) {
+          // Handle any errors here
+          console.error("Error: " + error);
         }
       });
+    }
+    $(document).ready(function () {
+      $("#submitCreateDocBtn").click(function () {
+        submitCreateDocForm();
+      });
+      // Toggle Dark Mode
+      document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
 
+      // Initialize dark mode on page load
+      window.addEventListener('load', initializeDarkMode);
 
+      // Event Handlers for Modals
       $("#createDocument").click(function () {
-        $("#createDocModal").css("display", "block");
-      });
-      // When the user clicks on <span> (x), close the modal
-      $(".close").click(function () {
-        $("#createDocModal").css("display", "none");
-      });
-
-      // When the user clicks anywhere outside of the modal, close it
-      $(window).click(function (event) {
-        if ($(event.target).is("#createDocModal")) {
-          $("#createDocModal").css("display", "none");
-        }
-      });
-
-      // Handle form submission
-      $("#createDocForm").submit(function (e) {
-        e.preventDefault(); // Prevent default form submission
-
-        $.ajax({
-          type: "POST",
-          url: "/documents/create",
-          data: $(this).serialize(), // Serializes the form's elements.
-          success: function (data) {
-            $("#createDocModal").css("display", "none"); // Close the modal
-            // Optionally, refresh the page or update the UI
-          },
+        var myModal = new bootstrap.Modal(document.getElementById('createDocModal'), {
+          keyboard: false
         });
+        myModal.show();
       });
+
+      $("#loadDocument").click(function () {
+        var myModal = new bootstrap.Modal(document.getElementById('loadDocModal'), {
+          keyboard: false
+        });
+        myModal.show();
+      });
+
+      // Dark Mode Toggle Functions
+      function toggleDarkMode() {
+        const body = document.body;
+        body.classList.toggle('dark-mode');
+        const moonIcon = document.getElementById('moonIcon');
+        const sunIcon = document.getElementById('sunIcon');
+        moonIcon.style.display = body.classList.contains('dark-mode') ? 'none' : 'block';
+        sunIcon.style.display = body.classList.contains('dark-mode') ? 'block' : 'none';
+        localStorage.setItem('darkMode', body.classList.contains('dark-mode'));
+      }
+
+      function initializeDarkMode() {
+        const isDarkMode = localStorage.getItem('darkMode') === 'true';
+        const body = document.body;
+        body.classList.toggle('dark-mode', isDarkMode);
+        const moonIcon = document.getElementById('moonIcon');
+        const sunIcon = document.getElementById('sunIcon');
+        moonIcon.style.display = isDarkMode ? 'none' : 'block';
+        sunIcon.style.display = isDarkMode ? 'block' : 'none';
+      }
     });
   </script>
 </body>

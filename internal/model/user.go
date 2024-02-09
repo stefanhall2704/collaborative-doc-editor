@@ -7,8 +7,8 @@ import (
 
 type Document struct {
     gorm.Model
-    Title    string `gorm:"type:varchar(100);not null"`
-    Content  string `gorm:"type:text;not null"`
+    FileName    string `gorm:"type:varchar(100);"`
+    ContentType  string `gorm:"type:text;"`
     OwnerID  uint   `gorm:"not null"`
     LastEdit    time.Time
 }

@@ -67,7 +67,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
     // Get username and password from form
     username := r.Form.Get("username")
     password := r.Form.Get("password")
-    fmt.Printf("Username: %s, Password: %s\n", username, password) // Print username and password for debugging
     // Query user from the database by username
     var user model.User
 
@@ -104,7 +103,6 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 
 
-// Logout Handler
 // Logout Handler
 func logoutHandler(w http.ResponseWriter, r *http.Request) {
     // Clear session
