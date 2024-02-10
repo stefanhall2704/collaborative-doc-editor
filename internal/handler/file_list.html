@@ -1,0 +1,13 @@
+<div class="container">
+  <div id="fileList">
+    <!-- Files will be rendered here -->
+    {{ range .Documents }}
+    <div class="file">
+      <span class="file-name">{{ .FileName }}</span>
+
+    </div>
+    {{ end }}
+  </div>
+  <!-- Spinner -->
+
+</div>
