@@ -158,7 +158,10 @@ func main() {
 		if r.Method == "OPTIONS" {
 			return // Handle preflight request
 		}
-		handler.DocumentCreateHandler(database, w, r)
+
+		session, _ := store.Get(r, "session-name")
+		userID := session.Values["userID"]
+		handler.DocumentCreateHandler(database, w, r, userID)
 	}))))
 	http.Handle("/documents/get", logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		enableCors(&w)

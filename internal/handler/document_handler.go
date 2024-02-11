@@ -18,29 +18,25 @@ import (
 	"strconv"
 )
 
-func DocumentCreateHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request) {
+func DocumentCreateHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request, userID interface{}) {
+	ownerID, ok := userID.(uint)
+	if !ok {
+		log.Printf("ID: %v", ownerID)
+		http.Error(w, "Invalid user ID", http.StatusBadRequest)
+		return
+	}
 	// Parse multipart form data with a max memory of 10MB
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
 		http.Error(w, "Error parsing multipart form data", http.StatusBadRequest)
 		return
 	}
 
-	ownerIDStr := r.FormValue("user_id")
 	err := godotenv.Load() // This will load the .env file from the same directory
 	if err != nil {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 	accountName := os.Getenv("ACCOUNT_NAME")
 	accountKey := os.Getenv("ACCOUNT_KEY")
-
-	// Convert ownerIDStr to uint
-	ownerID64, err := strconv.ParseUint(ownerIDStr, 10, 32)
-	if err != nil {
-		log.Printf("Error converting user ID: %v", err)
-		http.Error(w, "Invalid user ID format", http.StatusBadRequest)
-		return
-	}
-	ownerID := uint(ownerID64)
 
 	// Retrieve the file from the posted form-data
 	file, header, err := r.FormFile("attachment")
