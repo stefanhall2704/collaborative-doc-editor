@@ -9,7 +9,7 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
     integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-  <!-- Optional Bootstrap JS with Popper -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
 </head>
 <style>
   /* Default mode */
@@ -42,6 +42,7 @@
     flex-direction: column;
     align-items: center;
     margin: 0 auto;
+    height: 100%;
     padding: 20px;
   }
 
@@ -124,6 +125,110 @@
     color: #000;
     /* Black text color */
   }
+
+
+  .file {
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+  }
+
+  .file input[type="radio"]:checked+.file-name {
+    font-weight: bold;
+    color: #007bff;
+    /* Bootstrap primary color, adjust as needed */
+  }
+
+  .file:hover {
+    background-color: #f8f9fa;
+    /* Slightly darker background on hover */
+  }
+
+  /* Dark mode specific styles */
+  body.dark-mode .file:hover .file-name {
+    color: #000;
+    /* Black text color for visibility on hover in dark mode */
+  }
+
+  #docCanvas {
+    border-radius: 5px;
+    border: 1px solid #ccc;
+
+
+  }
+
+  #titleInputGroup {
+    display: flex;
+    align-items: center;
+    /* Center items vertically */
+    gap: 8px;
+    /* Space between input and extension */
+  }
+
+  #docTitle {
+    flex-grow: 1;
+    /* Allow input to fill space */
+  }
+
+  #titleInputGroup {
+    position: relative;
+    /* Make this a positioning context */
+  }
+
+
+  #titleInputGroup {
+    display: flex;
+    align-items: center;
+    position: relative;
+    /* Ensure this is set for absolute positioning of children */
+  }
+
+  #editTitleBtn,
+  #confirmEditBtn {
+    position: absolute;
+    top: -7%;
+    /* Center vertically */
+    left: -40px;
+    /* Adjust based on your needs */
+    transform: translateY(-50%);
+    /* Ensure vertical centering */
+    z-index: 2;
+  }
+
+  #docTitle {
+    flex-grow: 1;
+    /* Take available space */
+    height: 38px;
+    /* Adjust based on your needs */
+    padding: 6px 12px;
+
+    /* Adjust for text alignment */
+    /* Additional styles to ensure vertical centering */
+    display: flex;
+    align-items: center;
+    height: auto;
+    /* Adjust as needed or remove if setting explicit height */
+    padding-top: 10px;
+    /* Adjust as needed */
+    padding-bottom: 10px;
+    /* Adjust as needed */
+    line-height: normal;
+    /* Adjust as needed */
+  }
+
+
+  #docTitle {
+    padding-top: 30px;
+    /* Add padding to avoid overlap */
+  }
+
+  #extensionDisplay {
+    margin-left: 0.5rem;
+    /* Space between input and extension text */
+    color: gray;
+    /* Style for extension text */
+    white-space: nowrap;
+    /* Prevent wrapping */
+  }
 </style>
 </head>
 
@@ -165,15 +270,19 @@
       </div>
     </div>
   </nav>
-
-
   </div>
+
   <div class="editor-container" id="document_editing">
-    <input type="text" id="docTitle" placeholder="Document Title">
-    <textarea id="docEditor" placeholder="Start editing your document here..."></textarea>
+    <div class="d-flex align-items-center" id="titleInputGroup">
+      <button id="editTitleBtn" class="btn" title="Edit title"><span style='font-size:25px;'>&#9998;</span></button>
+      <button id="confirmEditBtn" class="btn" title="Confirm edit" style="display: none;"><span
+          style='font-size:25px;'>&#10003;</span></button>
+      <input type="text" id="docTitle" placeholder="Document Title" class="form-control" aria-label="Document Title"
+        readonly>
+    </div>
+    <div id="codeEditor" style="height: 750px; width: 100%;"></div>
     <div id="status">User status: Viewing</div>
   </div>
-
 
   <!-- Modal -->
   <div class="modal fade" id="createDocModal" tabindex="-1" aria-labelledby="createDocModalLabel" aria-hidden="true">
@@ -186,10 +295,11 @@
         <div class="modal-body">
           <!-- Update the form tag to include enctype for file uploads -->
           <form id="createDocForm" enctype="multipart/form-data">
-            <!-- Add a file input for attachments -->
+            <!-- Add a file input for attachments with specific file types for programming languages -->
             <div class="mb-3">
               <label for="attachment" class="form-label">Attachment</label>
-              <input type="file" class="form-control" id="attachment" name="attachment">
+              <input type="file" class="form-control" id="attachment" name="attachment"
+                accept=".py,.js,.java,.c,.cpp,.cs,.ts,.json,.html,.css,.scss,.php,.rb,.swift,.go,.kt,.rs,.lua,.perl">
             </div>
             <input type="hidden" name="user_id" value="1"> <!-- Dynamically set based on logged-in user -->
           </form>
@@ -202,6 +312,7 @@
       </div>
     </div>
   </div>
+
 
   <!-- Modal -->
   <div class="modal fade" id="loadDocModal" tabindex="-1" aria-labelledby="loadDocModalLabel" aria-hidden="true">
@@ -221,7 +332,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-          <button type="submit" form="createDocForm" class="btn btn-primary">Create Document</button>
+          <button type="button" class="btn btn-primary" id="editDocBtn">Edit</button>
         </div>
       </div>
     </div>
@@ -232,78 +343,215 @@
     integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
     crossorigin="anonymous"></script>
 
-  <script>
-    function submitCreateDocForm() {
-      var formData = new FormData($("#createDocForm")[0]);
 
-      $.ajax({
-        type: "POST",
-        url: "/documents/create",
-        data: formData,
-        processData: false, // Tell jQuery not to process the data
-        contentType: false, // Tell jQuery not to set contentType
-        success: function (data) {
-          $("#createDocModal").modal('hide'); // Close the modal
-          // Optionally, refresh the page or update the UI to reflect the new document
-        },
-        error: function (xhr, status, error) {
-          // Handle any errors here
-          console.error("Error: " + error);
+
+  <script>
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const editTitleBtn = document.getElementById('editTitleBtn');
+      const confirmEditBtn = document.getElementById('confirmEditBtn');
+      const docTitleInput = document.getElementById('docTitle');
+
+      editTitleBtn.addEventListener('click', function () {
+        // Enable the textbox for editing
+        docTitleInput.readOnly = false;
+        docTitleInput.focus();
+        // Show the confirm button, hide the edit button
+        confirmEditBtn.style.display = 'inline-block';
+        editTitleBtn.style.display = 'none';
+      });
+
+      confirmEditBtn.addEventListener('click', function () {
+        // Disable the textbox, locking the title
+        docTitleInput.readOnly = true;
+        // Hide the confirm button, show the edit button
+        confirmEditBtn.style.display = 'none';
+        editTitleBtn.style.display = 'inline-block';
+        // Optionally, save the new title to the server or local storage here
+      });
+
+      // Optional: Automatically lock down on blur (when the user clicks away)
+      docTitleInput.addEventListener('blur', function () {
+        // Trigger the confirm click programmatically if the user clicks away without confirming
+        if (!docTitleInput.readOnly) {
+          confirmEditBtn.click();
         }
       });
-    }
+      document.getElementById('editDocBtn').addEventListener('click', function () {
+        // Assuming the file name is retrieved correctly from the selected file
+        var selectedFile = document.querySelector('input[name="selectedFile"]:checked').value;
+        var fileNameParts = selectedFile.split('.');
+        var fileNameWithoutExt = fileNameParts.slice(0, -1).join('.'); // Handles files with multiple dots
+        var fileExtension = '.' + fileNameParts.pop();
+
+        // Store file name and extension in local storage
+        localStorage.setItem('fileName', fileNameWithoutExt);
+        localStorage.setItem('fileExtension', fileExtension);
+
+        // Update the document title and show extension
+        updateTitleAndExtension(fileNameWithoutExt, fileExtension);
+
+        // Hide the modal after setting the title and extension
+        $('#loadDocModal').modal('hide');
+      });
+      var createDocButton = document.getElementById('createDocument');
+      var loadDocButton = document.getElementById('loadDocument');
+      var editDocButton = document.getElementById('editDocBtn'); // This should be a button, not a modal
+
+      var createDocModal = new bootstrap.Modal(document.getElementById('createDocModal'));
+      var loadDocModal = new bootstrap.Modal(document.getElementById('loadDocModal'));
+
+      createDocButton.addEventListener('click', function () {
+        createDocModal.show();
+      });
+
+      loadDocButton.addEventListener('click', function () {
+        loadDocModal.show();
+      });
+
+      // Add event listener to the 'Edit' button to hide the loadDocModal when clicked
+      editDocButton.addEventListener('click', function () {
+        loadDocModal.hide();
+        // You may want to add additional logic here to handle the editing action
+      });
+    });
+
     $(document).ready(function () {
-      $("#submitCreateDocBtn").click(function () {
-        submitCreateDocForm();
+      // Initialize Ace Editor
+      var editor = ace.edit("codeEditor");
+      editor.setTheme("ace/theme/monokai");
+
+      // Utility function to set the editor mode based on file extension
+      function setEditorMode(fileName) {
+        const fileExtension = fileName.split('.').pop().toLowerCase();
+        let mode;
+        switch (fileExtension) {
+          case 'py':
+            mode = "ace/mode/python";
+            break;
+          case 'js':
+            mode = "ace/mode/javascript";
+            break;
+          case 'java':
+            mode = "ace/mode/java";
+            break;
+          case 'json':
+            mode = "ace/mode/json";
+            break;
+          // Add more file types as needed
+          default:
+            mode = "ace/mode/plain_text";
+        }
+        editor.session.setMode(mode);
+      }
+
+      // Function to fetch and display file content
+      function fetchAndDisplayFileContent(url, fileName) {
+        fetch(url)
+          .then(response => response.text())
+          .then(data => {
+            editor.setValue(data, -1); // -1 moves the cursor to the start of the file
+            setEditorMode(fileName);
+          })
+          .catch(error => console.error('Error fetching file:', error));
+      }
+
+      // Load the content when a file is selected for editing
+      $('#editDocBtn').click(function () {
+        const selectedFile = $('#fileList .file input[type="radio"]:checked').closest('.file');
+        const fileName = selectedFile.find('.file-name').text(); // Assuming the file name is stored here
+        const docId = selectedFile.data('doc-id');
+        const url = `/documents/serve?id=${docId}`;
+        fetchAndDisplayFileContent(url, fileName);
       });
+
       // Toggle Dark Mode
-      document.getElementById('darkModeToggle').addEventListener('click', toggleDarkMode);
-
-      // Initialize dark mode on page load
-      window.addEventListener('load', initializeDarkMode);
-
-      // Event Handlers for Modals
-      $("#createDocument").click(function () {
-        var myModal = new bootstrap.Modal(document.getElementById('createDocModal'), {
-          keyboard: false
-        });
-        myModal.show();
-      });
-
-      $("#loadDocument").click(function () {
-        var myModal = new bootstrap.Modal(document.getElementById('loadDocModal'), {
-          keyboard: false
-        });
-        myModal.show();
-      });
-
-
-      function toggleDarkMode() {
+      document.getElementById('darkModeToggle').addEventListener('click', function () {
         const body = document.body;
         body.classList.toggle('dark-mode');
-        // Toggle for modals explicitly if needed
         $('.modal-content').toggleClass('dark-mode');
-        // Adjust icon visibility
         const moonIcon = document.getElementById('moonIcon');
         const sunIcon = document.getElementById('sunIcon');
         moonIcon.style.display = body.classList.contains('dark-mode') ? 'none' : 'block';
         sunIcon.style.display = body.classList.contains('dark-mode') ? 'block' : 'none';
         localStorage.setItem('darkMode', body.classList.contains('dark-mode'));
-      }
+      });
 
+      // Initialize dark mode based on local storage
       function initializeDarkMode() {
         const isDarkMode = localStorage.getItem('darkMode') === 'true';
-        const body = document.body;
-        body.classList.toggle('dark-mode', isDarkMode);
-        // Initialize for modals explicitly if needed
+        document.body.classList.toggle('dark-mode', isDarkMode);
         $('.modal-content').toggleClass('dark-mode', isDarkMode);
-        // Adjust icon visibility
         const moonIcon = document.getElementById('moonIcon');
         const sunIcon = document.getElementById('sunIcon');
         moonIcon.style.display = isDarkMode ? 'none' : 'block';
         sunIcon.style.display = isDarkMode ? 'block' : 'none';
       }
+      initializeDarkMode();
 
+      // Form submission logic
+      $("#submitCreateDocBtn").click(function () {
+        var formData = new FormData($("#createDocForm")[0]);
+        $.ajax({
+          type: "POST",
+          url: "/documents/create",
+          data: formData,
+          processData: false,
+          contentType: false,
+          success: function (data) {
+            $("#createDocModal").modal('hide');
+            // Refresh or update UI as needed
+          },
+          error: function (xhr, status, error) {
+            console.error("Error: " + error);
+          }
+        });
+      });
+    });
+    $(document).ready(function () {
+      $('[data-bs-toggle="tooltip"]').tooltip(); // Initialize all tooltips
+    });
+
+    // Function to update the document title and extension display
+    function updateTitleAndExtension(fileNameWithoutExt, fileExtension) {
+      var docTitleInput = document.getElementById('docTitle');
+      var titleInputGroup = document.getElementById('titleInputGroup'); // Make sure this ID is correct and exists
+      var extensionDisplay = document.getElementById('extensionDisplay');
+
+      // Dispose existing tooltip before updating title
+      if (bootstrap.Tooltip.getInstance(docTitleInput)) {
+        bootstrap.Tooltip.getInstance(docTitleInput).dispose();
+      }
+
+      // Update the input field with the file name without extension and re-initialize the tooltip
+      docTitleInput.value = fileNameWithoutExt;
+      docTitleInput.title = fileNameWithoutExt + fileExtension; // Update tooltip title here
+
+      // If the extension display doesn't exist, create it
+      if (!extensionDisplay) {
+        extensionDisplay = document.createElement('span');
+        extensionDisplay.id = 'extensionDisplay';
+        extensionDisplay.classList.add('text-muted', 'ms-2'); // Using Bootstrap classes for styling
+        titleInputGroup.appendChild(extensionDisplay);
+      }
+
+      // Update or set the extension text
+      extensionDisplay.textContent = fileExtension;
+
+      // Re-initialize the tooltip
+      new bootstrap.Tooltip(docTitleInput);
+    }
+
+    // Function to initialize tooltips on page load
+    function initializeTooltips() {
+      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+      tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+        new bootstrap.Tooltip(tooltipTriggerEl);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      initializeTooltips(); // This initializes tooltips on static elements
     });
   </script>
 </body>

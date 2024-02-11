@@ -8,6 +8,7 @@ import (
 	"github.com/stefanhall2704/collaborative-doc-editor/internal/model"
 	"gorm.io/gorm"
 	"html/template"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -156,5 +157,58 @@ func GetUserFiles(db *gorm.DB, w http.ResponseWriter, r *http.Request, userID in
 	if err := tmpl.Execute(w, data); err != nil {
 		http.Error(w, "Error executing template", http.StatusInternalServerError)
 		return
+	}
+}
+
+func ServeDocumentHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request, docID string) {
+	// Load environment variables
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+	accountName := os.Getenv("ACCOUNT_NAME")
+	accountKey := os.Getenv("ACCOUNT_KEY")
+
+	// Convert docID to uint
+	docIDUint, err := strconv.ParseUint(docID, 10, 32)
+	if err != nil {
+		log.Printf("Error converting document ID: %v", err)
+		http.Error(w, "Invalid document ID format", http.StatusBadRequest)
+		return
+	}
+
+	// Retrieve document metadata from database
+	var document model.Document
+	if err := db.First(&document, docIDUint).Error; err != nil {
+		http.Error(w, "Document not found", http.StatusNotFound)
+		return
+	}
+
+	// Setup Azure Blob Storage
+	ctx := context.Background()
+	credential, err := azblob.NewSharedKeyCredential(accountName, accountKey)
+	if err != nil {
+		log.Printf("Error creating Azure storage credential: %s", err)
+		return
+	}
+	pipeline := azblob.NewPipeline(credential, azblob.PipelineOptions{})
+	serviceURL, _ := url.Parse(fmt.Sprintf("https://%s.blob.core.windows.net/", accountName))
+	serviceURLWithPipeline := azblob.NewServiceURL(*serviceURL, pipeline)
+	containerURL := serviceURLWithPipeline.NewContainerURL("collabdocedit")
+	blobURL := containerURL.NewBlobURL(document.FileName)
+
+	downloadResponse, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false, azblob.ClientProvidedKeyOptions{})
+	if err != nil {
+		log.Printf("Error downloading document from Azure Blob Storage: %s", err)
+		return
+	}
+	bodyStream := downloadResponse.Body(azblob.RetryReaderOptions{MaxRetryRequests: 20})
+	defer bodyStream.Close()
+
+	// Serve the file content
+	w.Header().Set("Content-Type", "text/plain") // You might want to dynamically set this based on the file type
+	if _, err := io.Copy(w, bodyStream); err != nil {
+		log.Printf("Error writing file content to response: %v", err)
+		http.Error(w, "Error serving file content", http.StatusInternalServerError)
 	}
 }

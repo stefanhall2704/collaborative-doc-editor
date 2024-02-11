@@ -170,6 +170,20 @@ func main() {
 		userID := session.Values["userID"]
 		handler.GetUserFiles(database, w, r, userID)
 	}))))
+	http.Handle("/documents/serve", logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		enableCors(&w)
+		if r.Method != "GET" {
+			log.Println("Only GET requests are supported for document serving")
+			return
+		}
+		// Assuming you're passing a document ID as a query parameter
+		docID := r.URL.Query().Get("id")
+		if docID == "" {
+			http.Error(w, "Document ID is required", http.StatusBadRequest)
+			return
+		}
+		handler.ServeDocumentHandler(database, w, r, docID)
+	}))))
 
 	log.Println("Starting server on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {

@@ -1,13 +1,10 @@
 <div class="container">
   <div id="fileList">
-    <!-- Files will be rendered here -->
     {{ range .Documents }}
-    <div class="file">
-      <span class="file-name">{{ .FileName }}</span>
-
-    </div>
+    <label class="file d-block border p-2" data-doc-id="{{ .ID }}">
+      <input type="radio" name="selectedFile" value="{{ .FileName }}" class="d-none">
+      <span class="file-name" content-type="{{ .ContentType }}" data-doc-id="{{ .ID }}">{{ .FileName }}</span>
+    </label>
     {{ end }}
   </div>
-  <!-- Spinner -->
-
 </div>
