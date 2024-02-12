@@ -217,7 +217,7 @@ func ServeDocumentHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request, d
 	defer bodyStream.Close()
 
 	// Serve the file content
-	w.Header().Set("Content-Type", "text/plain") // You might want to dynamically set this based on the file type
+	w.Header().Set("Content-Type", "text/plain")
 	if _, err := io.Copy(w, bodyStream); err != nil {
 		log.Printf("Error writing file content to response: %v", err)
 		http.Error(w, "Error serving file content", http.StatusInternalServerError)
