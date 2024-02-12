@@ -173,6 +173,15 @@ func main() {
 		userID := session.Values["userID"]
 		handler.GetUserFiles(database, w, r, userID)
 	}))))
+
+	http.Handle("/documents/get/shared", logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		enableCors(&w)
+		if r.Method != "GET" {
+			log.Println("Wrong Protocol, use the GET protocol")
+			return // Handle preflight request
+		}
+		handler.GetSharedFiles(database, w, r)
+	}))))
 	http.Handle("/documents/serve", logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		enableCors(&w)
 		if r.Method != "GET" {

@@ -229,12 +229,24 @@
     white-space: nowrap;
     /* Prevent wrapping */
   }
+
+  /* Style for nested dropdown - initially hidden */
+  .dropdown-submenu .dropdown-menu {
+    display: none;
+    position: absolute;
+    left: 100%;
+    /* Position to the right of the parent item */
+    top: 0;
+  }
+
+  /* Display the nested dropdown on hover of the submenu */
+  .dropdown-submenu:hover .dropdown-menu {
+    display: block;
+  }
 </style>
 </head>
 
 <body>
-
-
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container-fluid">
       <a class="navbar-brand" href="#">DocEditor</a>
@@ -251,8 +263,16 @@
             </a>
             <ul class="dropdown-menu" aria-labelledby="navbarDropdownMenuLink">
               <li><a class="dropdown-item" href="#" id="createDocument">New File</a></li>
-              <li><a class="dropdown-item" href="#" id="loadDocument" hx-get="/documents/get" hx-target="#spinner"
-                  hx-swap="outerHTML" hx-trigger="click">Load File</a></li>
+              <!-- Nested dropdown for Load Files -->
+              <li class="dropdown-submenu">
+                <a class="dropdown-item dropdown-toggle" href="#">Load File</a>
+                <ul class="dropdown-menu">
+                  <li><a class="dropdown-item" href="#" id="loadDocument" hx-get="/documents/get" hx-target="#spinner"
+                      hx-swap="outerHTML" hx-trigger="click">My Files</a></li>
+                  <li><a class="dropdown-item" href="#" id="loadSharedDocuments" hx-get="/documents/get/shared"
+                      hx-target="#sharedFilesSpinner" hx-swap="outerHTML" hx-trigger="click">Shared Files</a></li>
+                </ul>
+              </li>
             </ul>
           </li>
         </ul>
@@ -270,7 +290,6 @@
       </div>
     </div>
   </nav>
-  </div>
 
   <div class="editor-container" id="document_editing">
     <div class="d-flex align-items-center" id="titleInputGroup">
@@ -313,6 +332,29 @@
   </div>
 
 
+  <!-- Shared Files Modal -->
+  <div class="modal fade" id="loadSharedFilesModal" tabindex="-1" aria-labelledby="loadSharedFilesModalLabel"
+    aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+
+        <div class="modal-header">
+          <h5 class="modal-title" id="loadSharedFilesModalLabel">Shared Files</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="loadSharedFilesForm">
+            <div id="sharedFilesSpinner" class="spinner-border text-primary" role="status">
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary" id="editSharedDocBtn">Edit</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <!-- Modal -->
   <div class="modal fade" id="loadDocModal" tabindex="-1" aria-labelledby="loadDocModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -344,6 +386,42 @@
 
 
   <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      document.getElementById('editSharedDocBtn').addEventListener('click', function () {
+        // Assuming the file name is retrieved correctly from the selected file
+        var selectedFile = document.querySelector('input[name="selectedFile"]:checked').value;
+        var fileNameParts = selectedFile.split('.');
+        var fileNameWithoutExt = fileNameParts.slice(0, -1).join('.'); // Handles files with multiple dots
+        var fileExtension = '.' + fileNameParts.pop();
+
+        // Store file name and extension in local storage
+        localStorage.setItem('fileName', fileNameWithoutExt);
+        localStorage.setItem('fileExtension', fileExtension);
+
+        // Update the document title and show extension
+        updateTitleAndExtension(fileNameWithoutExt, fileExtension);
+
+        // Hide the modal after setting the title and extension
+        $('#loadSharedFilesModal').modal('hide');
+      });
+      var loadSharedDocButton = document.getElementById('loadSharedDocuments');
+      var editSharedDocButton = document.getElementById('editSharedDocBtn'); // This should be a button, not a modal
+
+      var loadSharedDocModal = new bootstrap.Modal(document.getElementById('loadSharedFilesModal'));
+
+
+
+      loadSharedDocButton.addEventListener('click', function () {
+        loadSharedDocModal.show();
+      });
+
+      // Add event listener to the 'Edit' button to hide the loadDocModal when clicked
+      editSharedDocButton.addEventListener('click', function () {
+        loadSharedDocModal.hide();
+        // You may want to add additional logic here to handle the editing action
+      });
+    });
+
 
     document.addEventListener('DOMContentLoaded', function () {
       const editTitleBtn = document.getElementById('editTitleBtn');
@@ -427,6 +505,9 @@
           case 'py':
             mode = "ace/mode/python";
             break;
+          case 'html':
+            mode = "ace/mode/html";
+            break;
           case 'js':
             mode = "ace/mode/javascript";
             break;
@@ -456,6 +537,13 @@
 
       // Load the content when a file is selected for editing
       $('#editDocBtn').click(function () {
+        const selectedFile = $('#fileList .file input[type="radio"]:checked').closest('.file');
+        const fileName = selectedFile.find('.file-name').text(); // Assuming the file name is stored here
+        const docId = selectedFile.data('doc-id');
+        const url = `/documents/serve?id=${docId}`;
+        fetchAndDisplayFileContent(url, fileName);
+      });
+      $('#editSharedDocBtn').click(function () {
         const selectedFile = $('#fileList .file input[type="radio"]:checked').closest('.file');
         const fileName = selectedFile.find('.file-name').text(); // Assuming the file name is stored here
         const docId = selectedFile.data('doc-id');
@@ -550,6 +638,25 @@
 
     document.addEventListener('DOMContentLoaded', function () {
       initializeTooltips(); // This initializes tooltips on static elements
+    });
+
+    // This script might be unnecessary if CSS handles the hover effect well.
+    // It's provided here for completeness or for additional interactive behavior you might want to implement.
+    document.addEventListener('DOMContentLoaded', (event) => {
+      document.querySelectorAll('.dropdown-submenu').forEach(function (element) {
+        element.addEventListener('mouseover', function (e) {
+          let submenu = this.querySelector('.dropdown-menu');
+          if (submenu) {
+            submenu.style.display = 'block';
+          }
+        });
+        element.addEventListener('mouseout', function (e) {
+          let submenu = this.querySelector('.dropdown-menu');
+          if (submenu) {
+            submenu.style.display = 'none';
+          }
+        });
+      })
     });
   </script>
 </body>
