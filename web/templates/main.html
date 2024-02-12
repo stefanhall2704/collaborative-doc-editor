@@ -493,11 +493,10 @@
     });
 
     $(document).ready(function () {
-      // Initialize Ace Editor
       var editor = ace.edit("codeEditor");
       editor.setTheme("ace/theme/monokai");
 
-      // Utility function to set the editor mode based on file extension
+      // Function to set the editor mode based on file extension
       function setEditorMode(fileName) {
         const fileExtension = fileName.split('.').pop().toLowerCase();
         let mode;
@@ -508,14 +507,11 @@
           case 'html':
             mode = "ace/mode/html";
             break;
-          case 'js':
-            mode = "ace/mode/javascript";
-            break;
-          case 'java':
-            mode = "ace/mode/java";
-            break;
           case 'json':
             mode = "ace/mode/json";
+            break;
+          case 'js':
+            mode = "ace/mode/javascript";
             break;
           // Add more file types as needed
           default:
@@ -523,6 +519,49 @@
         }
         editor.session.setMode(mode);
       }
+
+      var docId = localStorage.getItem("docID"); // Fallback to 'null' if not set
+      var ws = new WebSocket(`ws://localhost:8080/ws?docID=${encodeURIComponent(docId)}`);
+
+
+      ws.onopen = function () {
+        console.log("WebSocket connection established");
+        // Request the current full content from the server
+        ws.send(JSON.stringify({type: 'requestFullContent'}));
+      };
+      let applyingRemoteChange = false;
+
+      ws.onmessage = function (event) {
+        const message = JSON.parse(event.data);
+        console.log(message);
+
+        if (message.type === 'delta') {
+          applyingRemoteChange = true; // Disable sending changes while applying this change
+          editor.getSession().getDocument().applyDeltas([message.delta]);
+          applyingRemoteChange = false; // Re-enable sending changes
+        }
+      };
+
+
+      ws.onclose = function (event) {
+        console.log("WebSocket closed:", event);
+      };
+
+      ws.onerror = function (error) {
+        console.error("WebSocket error:", error);
+      };
+
+
+      editor.getSession().on('change', function (delta) {
+        // Check if the change is local and should be sent
+        if (!applyingRemoteChange) {
+          ws.send(JSON.stringify({type: 'delta', delta: delta}));
+        }
+      });
+
+
+
+
 
       // Function to fetch and display file content
       function fetchAndDisplayFileContent(url, fileName) {
@@ -540,6 +579,7 @@
         const selectedFile = $('#fileList .file input[type="radio"]:checked').closest('.file');
         const fileName = selectedFile.find('.file-name').text(); // Assuming the file name is stored here
         const docId = selectedFile.data('doc-id');
+        localStorage.setItem("docID", docId);
         const url = `/documents/serve?id=${docId}`;
         fetchAndDisplayFileContent(url, fileName);
       });
@@ -547,6 +587,7 @@
         const selectedFile = $('#fileList .file input[type="radio"]:checked').closest('.file');
         const fileName = selectedFile.find('.file-name').text(); // Assuming the file name is stored here
         const docId = selectedFile.data('doc-id');
+        localStorage.setItem("docID", docId);
         const url = `/documents/serve?id=${docId}`;
         fetchAndDisplayFileContent(url, fileName);
       });
@@ -658,6 +699,10 @@
         });
       })
     });
+
+
+
+
   </script>
 </body>
 

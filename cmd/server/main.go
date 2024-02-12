@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/stefanhall2704/collaborative-doc-editor/internal/db"
+  "github.com/gorilla/websocket"
 	"github.com/stefanhall2704/collaborative-doc-editor/internal/handler"
 	"github.com/stefanhall2704/collaborative-doc-editor/internal/model"
 )
@@ -22,6 +24,97 @@ func enableCors(w *http.ResponseWriter) {
 }
 
 var store = sessions.NewCookieStore([]byte("secret"))
+
+var upgrader = websocket.Upgrader{
+    CheckOrigin: func(r *http.Request) bool { return true }, // Allow all origins
+}
+// A global list to keep track of all active connections
+var clients = make(map[*websocket.Conn]bool)
+
+// A channel to broadcast messages to all clients
+var broadcast = make(chan []byte)
+
+var docSessions = make(map[string][]*websocket.Conn)
+var mutex = &sync.Mutex{} // Mutex to protect access to docSessions
+
+
+func wsEndpoint(w http.ResponseWriter, r *http.Request) {
+    ws, err := upgrader.Upgrade(w, r, nil)
+    if err != nil {
+        log.Println(err)
+        return
+    }
+    defer ws.Close() // Ensure WebSocket is closed on function exit
+
+    docID := r.URL.Query().Get("docID")
+    if docID == "" || docID == "null" {
+        log.Println("docID is missing or null")
+        return
+    }
+
+    // Register connection
+    mutex.Lock()
+    docSessions[docID] = append(docSessions[docID], ws)
+    mutex.Unlock()
+
+    // Setup a cleanup routine to run when the function exits
+    defer func() {
+        mutex.Lock()
+        defer mutex.Unlock() // Ensure mutex is unlocked after cleanup
+        // Find and remove the closed connection from its session
+        for i, conn := range docSessions[docID] {
+            if conn == ws {
+                // Remove connection by reslicing
+                docSessions[docID] = append(docSessions[docID][:i], docSessions[docID][i+1:]...)
+                break
+            }
+        }
+        // Optional: Delete the docID key if no connections are left to avoid memory leak
+        if len(docSessions[docID]) == 0 {
+            delete(docSessions, docID)
+        }
+    }()
+
+    for {
+        _, message, err := ws.ReadMessage()
+        if err != nil {
+            log.Println("read error:", err)
+            break // Exit the loop and trigger cleanup on function exit
+        }
+
+        mutex.Lock()
+        // Broadcast message to clients editing the same document
+        for _, conn := range docSessions[docID] {
+            if conn != ws { // Don't send the message back to its sender
+                if err := conn.WriteMessage(websocket.TextMessage, message); err != nil {
+                    log.Println("write error:", err)
+                    // No need for additional logic here as cleanup is handled by defer
+                }
+            }
+        }
+        mutex.Unlock()
+    }
+
+    // No need to explicitly call cleanup logic here as defer will handle it
+}
+
+
+func handleMessages() {
+    for {
+        msg := <-broadcast // Receive message
+        for client := range clients { // Send it to all connected clients
+            err := client.WriteMessage(websocket.TextMessage, msg)
+            if err != nil {
+                log.Printf("client write error: %v", err)
+                client.Close()
+                delete(clients, client)
+            } else {
+            	log.Printf("broadcast to a client")
+            }
+        }
+    }
+}
+
 
 // Registration Handler
 func registerHandler(w http.ResponseWriter, r *http.Request) {
@@ -142,7 +235,9 @@ func protectedHandler(w http.ResponseWriter, r *http.Request) {
 }
 func main() {
 	database := db.ConnectDatabase()
-
+	// Websockets endpoints
+	http.HandleFunc("/ws", wsEndpoint)
+	go handleMessages()
 	// Apply middleware to protected routes
 	http.HandleFunc("/register", renderRegistrationPage)
 	http.HandleFunc("/register/process", registerHandler)
