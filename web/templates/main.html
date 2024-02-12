@@ -491,6 +491,42 @@
         // You may want to add additional logic here to handle the editing action
       });
     });
+    function initializeWebSocket(docId, editor) {
+      if (window.ws) {
+        window.ws.close(); // Close any existing WebSocket connection
+      }
+
+      window.ws = new WebSocket(`ws://localhost:8080/ws?docID=${encodeURIComponent(docId)}`);
+
+      let applyingRemoteChange = false; // Shared flag
+
+      window.ws.onopen = function () {
+        console.log("WebSocket connection established");
+        window.ws.send(JSON.stringify({type: 'requestFullContent'}));
+      };
+
+
+      let currentVersion = 0; // Track the current version
+
+      window.ws.onmessage = function (event) {
+        const message = JSON.parse(event.data);
+
+        if (message.type === 'delta' && message.version > currentVersion) {
+          applyingRemoteChange = true;
+          editor.getSession().getDocument().applyDeltas([message.delta]);
+          currentVersion = message.version; // Update to the latest version
+          setTimeout(() => {applyingRemoteChange = false;}, 0);
+        }
+      };
+
+      editor.getSession().on('change', function (delta) {
+        if (!applyingRemoteChange) {
+          currentVersion++; // Increment version for a new local change
+          window.ws.send(JSON.stringify({type: 'delta', delta: delta, version: currentVersion}));
+        }
+      });
+
+    }
 
     $(document).ready(function () {
       var editor = ace.edit("codeEditor");
@@ -519,49 +555,21 @@
         }
         editor.session.setMode(mode);
       }
-
-      var docId = localStorage.getItem("docID"); // Fallback to 'null' if not set
-      var ws = new WebSocket(`ws://localhost:8080/ws?docID=${encodeURIComponent(docId)}`);
-
-
-      ws.onopen = function () {
-        console.log("WebSocket connection established");
-        // Request the current full content from the server
-        ws.send(JSON.stringify({type: 'requestFullContent'}));
-      };
-      let applyingRemoteChange = false;
-
-      ws.onmessage = function (event) {
-        const message = JSON.parse(event.data);
-        console.log(message);
-
-        if (message.type === 'delta') {
-          applyingRemoteChange = true; // Disable sending changes while applying this change
-          editor.getSession().getDocument().applyDeltas([message.delta]);
-          applyingRemoteChange = false; // Re-enable sending changes
-        }
-      };
+      var docId = localStorage.getItem("docID") || "null";
+      initializeWebSocket(docId, editor);
 
 
-      ws.onclose = function (event) {
-        console.log("WebSocket closed:", event);
-      };
+      $('#editDocBtn, #editSharedDocBtn').click(function () {
+        const selectedFile = $('#fileList .file input[type="radio"]:checked').closest('.file');
+        const fileName = selectedFile.find('.file-name').text();
+        const docId = selectedFile.data('doc-id');
+        localStorage.setItem("docID", docId);
+        const url = `/documents/serve?id=${docId}`;
+        fetchAndDisplayFileContent(url, fileName);
 
-      ws.onerror = function (error) {
-        console.error("WebSocket error:", error);
-      };
-
-
-      editor.getSession().on('change', function (delta) {
-        // Check if the change is local and should be sent
-        if (!applyingRemoteChange) {
-          ws.send(JSON.stringify({type: 'delta', delta: delta}));
-        }
+        // Re-initialize WebSocket connection with the new docID
+        initializeWebSocket(docId, editor);
       });
-
-
-
-
 
       // Function to fetch and display file content
       function fetchAndDisplayFileContent(url, fileName) {
@@ -573,24 +581,6 @@
           })
           .catch(error => console.error('Error fetching file:', error));
       }
-
-      // Load the content when a file is selected for editing
-      $('#editDocBtn').click(function () {
-        const selectedFile = $('#fileList .file input[type="radio"]:checked').closest('.file');
-        const fileName = selectedFile.find('.file-name').text(); // Assuming the file name is stored here
-        const docId = selectedFile.data('doc-id');
-        localStorage.setItem("docID", docId);
-        const url = `/documents/serve?id=${docId}`;
-        fetchAndDisplayFileContent(url, fileName);
-      });
-      $('#editSharedDocBtn').click(function () {
-        const selectedFile = $('#fileList .file input[type="radio"]:checked').closest('.file');
-        const fileName = selectedFile.find('.file-name').text(); // Assuming the file name is stored here
-        const docId = selectedFile.data('doc-id');
-        localStorage.setItem("docID", docId);
-        const url = `/documents/serve?id=${docId}`;
-        fetchAndDisplayFileContent(url, fileName);
-      });
 
       // Toggle Dark Mode
       document.getElementById('darkModeToggle').addEventListener('click', function () {
