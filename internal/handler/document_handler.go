@@ -10,6 +10,8 @@ import (
 	"html/template"
 	"io"
 	"io/ioutil"
+
+	"strings"
 	"log"
 	"net/http"
 	"net/url"
@@ -17,6 +19,16 @@ import (
 	"path/filepath"
 	"strconv"
 )
+
+
+func parseFormValueToBool(value string) bool {
+    // Assuming "on" is the value for a checked checkbox
+    // Normalize the string to lowercase for comparison
+    lowerValue := strings.ToLower(value)
+    return lowerValue == "true" || lowerValue == "1" || lowerValue == "on"
+}
+
+
 
 func DocumentCreateHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request, userID interface{}) {
 	ownerID, ok := userID.(uint)
@@ -87,8 +99,11 @@ func DocumentCreateHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
+	log.Printf("Share form value: '%v'", r.Form.Get("share"))
+	shareString := r.Form.Get("share")
+	share:= parseFormValueToBool(shareString)
 	// Save document metadata to database
-	newDoc := model.Document{FileName: fileName, ContentType: contentType, OwnerID: ownerID}
+	newDoc := model.Document{FileName: fileName, ContentType: contentType, OwnerID: ownerID, Share: share}
 	result := db.Create(&newDoc)
 	if result.Error != nil {
 		log.Printf("Error creating document metadata: %s", result.Error)
@@ -206,5 +221,50 @@ func ServeDocumentHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request, d
 	if _, err := io.Copy(w, bodyStream); err != nil {
 		log.Printf("Error writing file content to response: %v", err)
 		http.Error(w, "Error serving file content", http.StatusInternalServerError)
+	}
+}
+func GetSharedFiles(db *gorm.DB, w http.ResponseWriter, r *http.Request) {
+	// Retrieve files associated with the user ID from the database
+	var documents []model.Document
+	if err := db.Where("share = ?", 1).Find(&documents).Error; err != nil {
+		http.Error(w, "Error fetching documents", http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("Number of documents retrieved: %d", len(documents))
+
+	// Log details of each retrieved document
+	for i, doc := range documents {
+		log.Printf("Document %d: %v", i+1, doc)
+	}
+
+	// Prepare data for rendering the HTML template
+	data := struct {
+		Documents []model.Document
+	}{
+		Documents: documents,
+	}
+
+	// Get the current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		http.Error(w, "Error getting current working directory", http.StatusInternalServerError)
+		return
+	}
+
+	// Construct the path to the template file
+	templatePath := filepath.Join(cwd, "internal", "handler", "file_list.html")
+
+	// Parse the HTML template
+	tmpl, err := template.ParseFiles(templatePath)
+	if err != nil {
+		http.Error(w, "Error parsing template", http.StatusInternalServerError)
+		return
+	}
+
+	// Execute the template with data and write the output to the response writer
+	if err := tmpl.Execute(w, data); err != nil {
+		http.Error(w, "Error executing template", http.StatusInternalServerError)
+		return
 	}
 }
