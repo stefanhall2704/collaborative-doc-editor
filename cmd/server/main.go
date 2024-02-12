@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/gorilla/sessions"
-	"golang.org/x/crypto/bcrypt"
 	"html/template"
 	"log"
 	"net/http"
@@ -11,8 +9,11 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/gorilla/sessions"
+	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/stefanhall2704/collaborative-doc-editor/internal/db"
-  "github.com/gorilla/websocket"
 	"github.com/stefanhall2704/collaborative-doc-editor/internal/handler"
 	"github.com/stefanhall2704/collaborative-doc-editor/internal/model"
 )
@@ -20,101 +21,102 @@ import (
 func enableCors(w *http.ResponseWriter) {
 	(*w).Header().Set("Access-Control-Allow-Origin", "*")
 	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	(*w).Header().
+		Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 }
 
 var store = sessions.NewCookieStore([]byte("secret"))
 
 var upgrader = websocket.Upgrader{
-    CheckOrigin: func(r *http.Request) bool { return true }, // Allow all origins
+	CheckOrigin: func(r *http.Request) bool { return true }, // Allow all origins
 }
+
 // A global list to keep track of all active connections
 var clients = make(map[*websocket.Conn]bool)
 
 // A channel to broadcast messages to all clients
 var broadcast = make(chan []byte)
 
-var docSessions = make(map[string][]*websocket.Conn)
-var mutex = &sync.Mutex{} // Mutex to protect access to docSessions
-
+var (
+	docSessions = make(map[string][]*websocket.Conn)
+	mutex       = &sync.Mutex{} // Mutex to protect access to docSessions
+)
 
 func wsEndpoint(w http.ResponseWriter, r *http.Request) {
-    ws, err := upgrader.Upgrade(w, r, nil)
-    if err != nil {
-        log.Println(err)
-        return
-    }
-    defer ws.Close() // Ensure WebSocket is closed on function exit
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer ws.Close() // Ensure WebSocket is closed on function exit
 
-    docID := r.URL.Query().Get("docID")
-    if docID == "" || docID == "null" {
-        log.Println("docID is missing or null")
-        return
-    }
+	docID := r.URL.Query().Get("docID")
+	if docID == "" || docID == "null" {
+		log.Println("docID is missing or null")
+		return
+	}
 
-    // Register connection
-    mutex.Lock()
-    docSessions[docID] = append(docSessions[docID], ws)
-    mutex.Unlock()
+	// Register connection
+	mutex.Lock()
+	docSessions[docID] = append(docSessions[docID], ws)
+	mutex.Unlock()
 
-    // Setup a cleanup routine to run when the function exits
-    defer func() {
-        mutex.Lock()
-        defer mutex.Unlock() // Ensure mutex is unlocked after cleanup
-        // Find and remove the closed connection from its session
-        for i, conn := range docSessions[docID] {
-            if conn == ws {
-                // Remove connection by reslicing
-                docSessions[docID] = append(docSessions[docID][:i], docSessions[docID][i+1:]...)
-                break
-            }
-        }
-        // Optional: Delete the docID key if no connections are left to avoid memory leak
-        if len(docSessions[docID]) == 0 {
-            delete(docSessions, docID)
-        }
-    }()
+	// Setup a cleanup routine to run when the function exits
+	defer func() {
+		mutex.Lock()
+		defer mutex.Unlock() // Ensure mutex is unlocked after cleanup
+		// Find and remove the closed connection from its session
+		for i, conn := range docSessions[docID] {
+			if conn == ws {
+				// Remove connection by reslicing
+				docSessions[docID] = append(docSessions[docID][:i], docSessions[docID][i+1:]...)
+				break
+			}
+		}
+		// Optional: Delete the docID key if no connections are left to avoid memory leak
+		if len(docSessions[docID]) == 0 {
+			delete(docSessions, docID)
+		}
+	}()
 
-    for {
-        _, message, err := ws.ReadMessage()
-        if err != nil {
-            log.Println("read error:", err)
-            break // Exit the loop and trigger cleanup on function exit
-        }
+	for {
+		_, message, err := ws.ReadMessage()
+		if err != nil {
+			log.Println("read error:", err)
+			break // Exit the loop and trigger cleanup on function exit
+		}
 
-        mutex.Lock()
-        // Broadcast message to clients editing the same document
-        for _, conn := range docSessions[docID] {
-            if conn != ws { // Don't send the message back to its sender
-                if err := conn.WriteMessage(websocket.TextMessage, message); err != nil {
-                    log.Println("write error:", err)
-                    // No need for additional logic here as cleanup is handled by defer
-                }
-            }
-        }
-        mutex.Unlock()
-    }
+		mutex.Lock()
+		// Broadcast message to clients editing the same document
+		for _, conn := range docSessions[docID] {
+			if conn != ws { // Don't send the message back to its sender
+				if err := conn.WriteMessage(websocket.TextMessage, message); err != nil {
+					log.Println("write error:", err)
+					// No need for additional logic here as cleanup is handled by defer
+				}
+			}
+		}
+		mutex.Unlock()
+	}
 
-    // No need to explicitly call cleanup logic here as defer will handle it
+	// No need to explicitly call cleanup logic here as defer will handle it
 }
-
 
 func handleMessages() {
-    for {
-        msg := <-broadcast // Receive message
-        for client := range clients { // Send it to all connected clients
-            err := client.WriteMessage(websocket.TextMessage, msg)
-            if err != nil {
-                log.Printf("client write error: %v", err)
-                client.Close()
-                delete(clients, client)
-            } else {
-            	log.Printf("broadcast to a client")
-            }
-        }
-    }
+	for {
+		msg := <-broadcast            // Receive message
+		for client := range clients { // Send it to all connected clients
+			err := client.WriteMessage(websocket.TextMessage, msg)
+			if err != nil {
+				log.Printf("client write error: %v", err)
+				client.Close()
+				delete(clients, client)
+			} else {
+				log.Printf("broadcast to a client")
+			}
+		}
+	}
 }
-
 
 // Registration Handler
 func registerHandler(w http.ResponseWriter, r *http.Request) {
@@ -233,6 +235,7 @@ func protectedHandler(w http.ResponseWriter, r *http.Request) {
 	// You can put any logic here for handling protected requests
 	fmt.Fprintln(w, "This is a protected route.")
 }
+
 func main() {
 	database := db.ConnectDatabase()
 	// Websockets endpoints
@@ -244,53 +247,65 @@ func main() {
 	http.HandleFunc("/login", renderLoginPage)
 	http.HandleFunc("/login/process", loginHandler)
 	http.Handle("/protected", authMiddleware(http.HandlerFunc(protectedHandler)))
-	//getUserFiles
+	// getUserFiles
 	// Apply middleware to other protected routes
 	http.Handle("/", logRequest(authMiddleware(http.HandlerFunc(documentEditing))))
 	http.Handle("/logout", logRequest(authMiddleware(http.HandlerFunc(logoutHandler))))
-	http.Handle("/documents/create", logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		enableCors(&w)
-		if r.Method == "OPTIONS" {
-			return // Handle preflight request
-		}
+	http.Handle(
+		"/documents/create",
+		logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			enableCors(&w)
+			if r.Method == "OPTIONS" {
+				return // Handle preflight request
+			}
 
-		session, _ := store.Get(r, "session-name")
-		userID := session.Values["userID"]
-		handler.DocumentCreateHandler(database, w, r, userID)
-	}))))
-	http.Handle("/documents/get", logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		enableCors(&w)
-		if r.Method != "GET" {
-			log.Println("Wrong Protocol, use the GET protocol")
-			return // Handle preflight request
-		}
-		session, _ := store.Get(r, "session-name")
-		userID := session.Values["userID"]
-		handler.GetUserFiles(database, w, r, userID)
-	}))))
+			session, _ := store.Get(r, "session-name")
+			userID := session.Values["userID"]
+			handler.DocumentCreateHandler(database, w, r, userID)
+		}))),
+	)
+	http.Handle(
+		"/documents/get",
+		logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			enableCors(&w)
+			if r.Method != "GET" {
+				log.Println("Wrong Protocol, use the GET protocol")
+				return // Handle preflight request
+			}
+			session, _ := store.Get(r, "session-name")
+			userID := session.Values["userID"]
+			handler.GetUserFiles(database, w, r, userID)
+		}))),
+	)
 
-	http.Handle("/documents/get/shared", logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		enableCors(&w)
-		if r.Method != "GET" {
-			log.Println("Wrong Protocol, use the GET protocol")
-			return // Handle preflight request
-		}
-		handler.GetSharedFiles(database, w, r)
-	}))))
-	http.Handle("/documents/serve", logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		enableCors(&w)
-		if r.Method != "GET" {
-			log.Println("Only GET requests are supported for document serving")
-			return
-		}
-		// Assuming you're passing a document ID as a query parameter
-		docID := r.URL.Query().Get("id")
-		if docID == "" {
-			http.Error(w, "Document ID is required", http.StatusBadRequest)
-			return
-		}
-		handler.ServeDocumentHandler(database, w, r, docID)
-	}))))
+	http.Handle(
+		"/documents/get/shared",
+		logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			enableCors(&w)
+			if r.Method != "GET" {
+				log.Println("Wrong Protocol, use the GET protocol")
+				return // Handle preflight request
+			}
+			handler.GetSharedFiles(database, w, r)
+		}))),
+	)
+	http.Handle(
+		"/documents/serve",
+		logRequest(authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			enableCors(&w)
+			if r.Method != "GET" {
+				log.Println("Only GET requests are supported for document serving")
+				return
+			}
+			// Assuming you're passing a document ID as a query parameter
+			docID := r.URL.Query().Get("id")
+			if docID == "" {
+				http.Error(w, "Document ID is required", http.StatusBadRequest)
+				return
+			}
+			handler.ServeDocumentHandler(database, w, r, docID)
+		}))),
+	)
 
 	log.Println("Starting server on :8080")
 	if err := http.ListenAndServe(":8080", nil); err != nil {
@@ -311,7 +326,6 @@ func documentEditing(w http.ResponseWriter, r *http.Request) {
 	templatePath := filepath.Join(cwd, "web", "templates", "main.html")
 
 	tmpl, err := template.ParseFiles(templatePath)
-
 	if err != nil {
 		log.Printf("Error parsing template: %s", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -344,6 +358,7 @@ func renderRegistrationPage(w http.ResponseWriter, r *http.Request) {
 		// Error handling after attempting to write to the response might be limited
 	}
 }
+
 func renderLoginPage(w http.ResponseWriter, r *http.Request) {
 	cwd, _ := os.Getwd() // Gets the current working directory
 	// Adjust the template path to be relative to the project root

@@ -3,34 +3,37 @@ package handler
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-storage-blob-go/azblob"
-	"github.com/joho/godotenv"
-	"github.com/stefanhall2704/collaborative-doc-editor/internal/model"
-	"gorm.io/gorm"
 	"html/template"
 	"io"
 	"io/ioutil"
-
-	"strings"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
+
+	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/joho/godotenv"
+	"gorm.io/gorm"
+
+	"github.com/stefanhall2704/collaborative-doc-editor/internal/model"
 )
 
-
 func parseFormValueToBool(value string) bool {
-    // Assuming "on" is the value for a checked checkbox
-    // Normalize the string to lowercase for comparison
-    lowerValue := strings.ToLower(value)
-    return lowerValue == "true" || lowerValue == "1" || lowerValue == "on"
+	// Assuming "on" is the value for a checked checkbox
+	// Normalize the string to lowercase for comparison
+	lowerValue := strings.ToLower(value)
+	return lowerValue == "true" || lowerValue == "1" || lowerValue == "on"
 }
 
-
-
-func DocumentCreateHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request, userID interface{}) {
+func DocumentCreateHandler(
+	db *gorm.DB,
+	w http.ResponseWriter,
+	r *http.Request,
+	userID interface{},
+) {
 	ownerID, ok := userID.(uint)
 	if !ok {
 		log.Printf("ID: %v", ownerID)
@@ -91,9 +94,14 @@ func DocumentCreateHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request, 
 	blobHTTPHeaders := azblob.BlobHTTPHeaders{ContentType: contentType}
 
 	// Upload the file to Azure Blob Storage
-	_, err = azblob.UploadBufferToBlockBlob(ctx, fileBytes, blobURL, azblob.UploadToBlockBlobOptions{
-		BlobHTTPHeaders: blobHTTPHeaders,
-	})
+	_, err = azblob.UploadBufferToBlockBlob(
+		ctx,
+		fileBytes,
+		blobURL,
+		azblob.UploadToBlockBlobOptions{
+			BlobHTTPHeaders: blobHTTPHeaders,
+		},
+	)
 	if err != nil {
 		log.Printf("Error uploading file to Azure Blob Storage: %s", err)
 		return
@@ -101,9 +109,14 @@ func DocumentCreateHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request, 
 
 	log.Printf("Share form value: '%v'", r.Form.Get("share"))
 	shareString := r.Form.Get("share")
-	share:= parseFormValueToBool(shareString)
+	share := parseFormValueToBool(shareString)
 	// Save document metadata to database
-	newDoc := model.Document{FileName: fileName, ContentType: contentType, OwnerID: ownerID, Share: share}
+	newDoc := model.Document{
+		FileName:    fileName,
+		ContentType: contentType,
+		OwnerID:     ownerID,
+		Share:       share,
+	}
 	result := db.Create(&newDoc)
 	if result.Error != nil {
 		log.Printf("Error creating document metadata: %s", result.Error)
@@ -208,7 +221,14 @@ func ServeDocumentHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request, d
 	containerURL := serviceURLWithPipeline.NewContainerURL("collabdocedit")
 	blobURL := containerURL.NewBlobURL(document.FileName)
 
-	downloadResponse, err := blobURL.Download(ctx, 0, azblob.CountToEnd, azblob.BlobAccessConditions{}, false, azblob.ClientProvidedKeyOptions{})
+	downloadResponse, err := blobURL.Download(
+		ctx,
+		0,
+		azblob.CountToEnd,
+		azblob.BlobAccessConditions{},
+		false,
+		azblob.ClientProvidedKeyOptions{},
+	)
 	if err != nil {
 		log.Printf("Error downloading document from Azure Blob Storage: %s", err)
 		return
@@ -223,6 +243,7 @@ func ServeDocumentHandler(db *gorm.DB, w http.ResponseWriter, r *http.Request, d
 		http.Error(w, "Error serving file content", http.StatusInternalServerError)
 	}
 }
+
 func GetSharedFiles(db *gorm.DB, w http.ResponseWriter, r *http.Request) {
 	// Retrieve files associated with the user ID from the database
 	var documents []model.Document

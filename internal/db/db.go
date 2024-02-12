@@ -1,9 +1,10 @@
 package db
 
 import (
+	"log"
+
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"log"
 
 	"github.com/stefanhall2704/collaborative-doc-editor/internal/model"
 )

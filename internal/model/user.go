@@ -1,8 +1,9 @@
 package model
 
 import (
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type Document struct {
@@ -17,9 +18,9 @@ type Document struct {
 
 type User struct {
 	gorm.Model
-	Username     string     `gorm:"not null"`
-	PasswordHash string     `gorm:"not null"`
-	Email        string     `gorm:"not null"`
-	Documents    []Document `gorm:"foreignKey:OwnerID"`
+	Username        string     `gorm:"not null"`
+	PasswordHash    string     `gorm:"not null"`
+	Email           string     `gorm:"not null"`
+	Documents       []Document `gorm:"foreignKey:OwnerID"`
 	SharedDocuments []Document `gorm:"many2many:shared_documents;"`
 }
